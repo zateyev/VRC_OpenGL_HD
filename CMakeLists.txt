@@ -10,6 +10,22 @@ if(NOT GLUT_FOUND)
     message(ERROR " GLUT not found!")
 endif(NOT GLUT_FOUND)
 
+# search for pkg-config
+include (FindPkgConfig)
+if (NOT PKG_CONFIG_FOUND)
+    message (FATAL_ERROR "pkg-config not found")
+endif ()
+
+# check for libpng
+pkg_check_modules (LIBPNG libpng16 REQUIRED)
+if (NOT LIBPNG_FOUND)
+    message(FATAL_ERROR "You don't seem to have libpng16 development libraries installed")
+else ()
+    include_directories (${LIBPNG_INCLUDE_DIRS})
+    link_directories (${LIBPNG_LIBRARY_DIRS})
+    link_libraries (${LIBPNG_LIBRARIES})
+endif ()
+
 SET(glui_DIR /usr/lib/lib/cmake/glui/)
 find_package(glui CONFIG REQUIRED)
 
@@ -41,17 +57,14 @@ include_directories(
   .
 )
 
-#search SOIL
-
-
-find_path(SOIL_INCLUDE_DIR SOIL.h
+find_path(
 	/usr/include
 	/usr/local/include
 	/opt/local/include
 	${CMAKE_SOURCE_DIR}/includes
 )
 
-find_library(SOIL_LIBRARY SOIL
+find_library(
 	/usr/lib64
   /usr/lib
 	/usr/local/lib
@@ -59,25 +72,10 @@ find_library(SOIL_LIBRARY SOIL
 	${CMAKE_SOURCE_DIR}/lib
 )
 
-IF(SOIL_INCLUDE_DIR AND SOIL_LIBRARY)
-	SET( SOIL_FOUND TRUE )
-	SET( SOIL_LIBRARIES ${SOIL_LIBRARY} )
-ENDIF(SOIL_INCLUDE_DIR AND SOIL_LIBRARY)
-IF(SOIL_FOUND)
-	IF(NOT SOIL_FIND_QUIETLY)
-	MESSAGE(STATUS "Found SOIL: ${SOIL_LIBRARY}")
-	ENDIF(NOT SOIL_FIND_QUIETLY)
-ELSE(SOIL_FOUND)
-	IF(SOIL_FIND_REQUIRED)
-	MESSAGE(FATAL_ERROR "Could not find libSOIL")
-	ENDIF(SOIL_FIND_REQUIRED)
-ENDIF(SOIL_FOUND)
-
 set(ALL_LIBS
 	${OPENGL_LIBRARY}
   ${GLUT_LIBRARY}
   GLEW_1130
-  ${SOIL_LIBRARY}
 )
 
 add_executable(main main.cpp)

@@ -11,7 +11,7 @@
 #include <include/GL/glm/gtx/transform2.hpp>
 #include <include/GL/glm/gtc/type_ptr.hpp>
 
-#include <SOIL/SOIL.h>
+#include <png.h>
 
 #include <include/GL/glui.h>
 
@@ -41,28 +41,54 @@ GLuint g_bfFragHandle;
 GLuint *pngTex;
 GLuint trTex;
 
-float g_stepSize = 150.0;
-float g_NumberOfSlices = 512.0; // 504
+float g_NumberOfSlices = 512.0;
+int png_width = 4096;
+int png_height = png_width;
+int maxTexturesNumber = 8;
+float g_SlicesOverX = 8.0;
+float g_SlicesOverY = g_SlicesOverX;
+string datasetDir = "../sprites/";
+
+// float g_NumberOfSlices = 1024.0;
+// int png_width = 16384;
+// int png_height = png_width;
+// int maxTexturesNumber = 4;
+// float g_SlicesOverX = 16.0;
+// float g_SlicesOverY = g_SlicesOverX;
+// string datasetDir = "../sprites_1024/";
+
+// float g_NumberOfSlices = 2016.0;
+// int png_width = 18144;
+// int png_height = png_width;
+// int maxTexturesNumber = 2;
+// float g_SlicesOverX = 9.0;
+// float g_SlicesOverY = g_SlicesOverX;
+// string datasetDir = "../sprites_2016/";
+
+// float g_NumberOfSlices = 384.0; // 1920
+// int png_width = 16128;
+// int png_height = png_width;
+// int maxTexturesNumber = 6; // > 7
+// float g_SlicesOverX = 8.0;
+// float g_SlicesOverY = g_SlicesOverX;
+// string datasetDir = "../slicemaps/";
+
+float g_stepSize = 200.0;
 float g_MinGrayVal = 0.4196; // 0
 float g_MaxGrayVal = 1.0; // 1
 float g_OpacityVal = 40.0; // 40
 float g_ColorVal = 1.0; // 0.4
 float g_AbsorptionModeIndex = 1.0; // -1.0 ? 1
-float g_SlicesOverX = 8.0; // 16
-float g_SlicesOverY = 8.0; // 16
 
-int maxTexturesNumber = 8;
+bool loadPngImage(const char *name, int &outWidth, int &outHeight, GLubyte **outData);
 
 int tr_width = 256;
 int tr_height = 10;
 
-int png_width = 4096;
-int png_height = 4096;
-
 int   last_x, last_y;
 float rotationX = 0.0, rotationY = 0.0;
 float initialFoV = 45.0f;
-float FoV=45.0f;
+float FoV = 45.0f;
 
 int main_window;
 
@@ -115,7 +141,7 @@ void CalculateFrameRate()
   {
     stringstream stream;
     stream << fixed << setprecision(2) << framesPerSecond
-      << "\tSpeed: " << 1000.0/double(framesPerSecond);
+      << "\nLatency: " << 1000.0/double(framesPerSecond);
     string str = "FPS: " + stream.str();
 
     char *cstr = new char[str.length() + 1];
@@ -132,13 +158,17 @@ void CalculateFrameRate()
 
 void loadImage(string pathToDir, GLuint* texture, int* width, int* height)
 {
-  // texture = new GLuint[maxTexturesNumber];
   glEnable(GL_TEXTURE_2D);
   glGenTextures(maxTexturesNumber, texture);
 
+  // stringstream ss;
+
   for (int i = 0; i < maxTexturesNumber; i++) {
-    // string pathToFile = pathToDir + "bonsai.raw.png";
+    // ss << setfill('0') << setw(4) << i * 7;
+    // string pathToFile = pathToDir + "slice_" + ss.str() + ".tif.png";
+    // ss.str(string());
     string pathToFile = pathToDir + "slicemap_" + to_string(i) + ".png";
+    // string pathToFile = pathToDir;
     cout << pathToFile << endl;
     glBindTexture(GL_TEXTURE_2D, texture[i]);
 
@@ -148,18 +178,82 @@ void loadImage(string pathToDir, GLuint* texture, int* width, int* height)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    unsigned char* tempTexture = SOIL_load_image(pathToFile.c_str(), width, height, 0, SOIL_LOAD_RGBA);
+    GLubyte *tempTexture;
+    loadPngImage(pathToFile.c_str(), *width, *height, &tempTexture);
 
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, *width, *height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tempTexture);
     glGenerateMipmap(GL_TEXTURE_2D);
 
-    SOIL_free_image_data(tempTexture);
+    delete [] tempTexture;
   }
 }
 
-void loadImage2(const char* pathToFile, GLuint* texture, int* width, int* height)
+bool loadPngImage(const char *name, int &outWidth, int &outHeight, GLubyte **outData) {
+    png_structp png_ptr;
+    png_infop info_ptr;
+    unsigned int sig_read = 0;
+    int color_type, interlace_type;
+    FILE *fp;
+
+    if ((fp = fopen(name, "rb")) == NULL)
+        return false;
+
+    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+                                     NULL, NULL, NULL);
+
+    if (png_ptr == NULL) {
+        fclose(fp);
+        return false;
+    }
+
+    info_ptr = png_create_info_struct(png_ptr);
+    if (info_ptr == NULL) {
+        fclose(fp);
+        png_destroy_read_struct(&png_ptr, NULL, NULL);
+        return false;
+    }
+
+    if (setjmp(png_jmpbuf(png_ptr))) {
+
+        png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+        fclose(fp);
+
+        return false;
+    }
+
+    png_init_io(png_ptr, fp);
+
+    png_set_sig_bytes(png_ptr, sig_read);
+
+    png_read_png(png_ptr, info_ptr, PNG_TRANSFORM_STRIP_16 | PNG_TRANSFORM_PACKING | PNG_TRANSFORM_EXPAND, NULL);
+
+    png_uint_32 width, height;
+    int bit_depth;
+    png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type,
+                 &interlace_type, NULL, NULL);
+    outWidth = width;
+    outHeight = height;
+
+    unsigned int row_bytes = png_get_rowbytes(png_ptr, info_ptr);
+    *outData = (unsigned char*) malloc(row_bytes * outHeight);
+
+    png_bytepp row_pointers = png_get_rows(png_ptr, info_ptr);
+
+    for (int i = 0; i < outHeight; i++) {
+      memcpy(*outData + (row_bytes * i), row_pointers[i], row_bytes);
+    }
+
+    png_destroy_read_struct(&png_ptr, &info_ptr, NULL);
+
+    fclose(fp);
+
+    return true;
+}
+
+void loadImage2(string pathToFile, GLuint* texture, int* width, int* height)
 {
-  unsigned char* tempTexture = SOIL_load_image(pathToFile, width, height, 0, SOIL_LOAD_RGBA);
+  GLubyte *tempTexture;
+  loadPngImage(pathToFile.c_str(), *width, *height, &tempTexture);
 
   glEnable(GL_TEXTURE_2D);
   glGenTextures(1, texture);
@@ -174,7 +268,7 @@ void loadImage2(const char* pathToFile, GLuint* texture, int* width, int* height
   glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, *width, *height, 0, GL_RGBA, GL_UNSIGNED_BYTE, tempTexture);
   glGenerateMipmap(GL_TEXTURE_2D);
 
-  SOIL_free_image_data(tempTexture);
+  delete [] tempTexture;
 }
 
 void render(GLenum cullFace);
@@ -187,9 +281,11 @@ void init()
   initShader();
 
   pngTex = new GLuint[maxTexturesNumber];
-  loadImage("../sprites/", pngTex, &png_width, &png_height);
-  // loadImage("../", pngTex, &png_width, &png_height);
-  loadImage2("../cm_BrBG_r.png", &trTex, &tr_width, &tr_height);
+  loadImage(datasetDir, pngTex, &png_width, &png_height);
+  // loadImage("../bonsai.raw.png", pngTex, &png_width, &png_height);
+
+  loadImage2("../cm_Greys_r.png", &trTex, &tr_width, &tr_height);
+  // loadImage2("../cm_BrBG_r.png", &trTex, &tr_width, &tr_height);
 
   g_bfTexObj = initFace2DTex(g_texWidth, g_texHeight);
   GL_ERROR();
@@ -392,10 +488,6 @@ void initFrameBuffer(GLuint texObj, GLuint texWidth, GLuint texHeight)
 
 void rcSetUinforms()
 {
-  // GLint maxTexturesNumberLoc = glGetUniformLocation(g_programHandle, "maxTexturesNumber");
-  // if (maxTexturesNumberLoc >= 0) glUniform1i(maxTexturesNumberLoc, maxTexturesNumber);
-  // else cout << "maxTexturesNumber is not bind to the uniform\n";
-
   GLint stepSizeLoc = glGetUniformLocation(g_programHandle, "uSteps");
   GL_ERROR();
   if (stepSizeLoc >= 0) glUniform1f(stepSizeLoc, g_stepSize);
@@ -428,7 +520,7 @@ void rcSetUinforms()
     volumeLoc = glGetUniformLocation(g_programHandle, sprites.c_str());
     if (volumeLoc >= 0)
     {
-    	glActiveTexture(33986 + i);
+    	glActiveTexture(GL_TEXTURE2 + i); // GL_TEXTURE2
     	glBindTexture(GL_TEXTURE_2D, *pngTex + i);
     	glUniform1i(volumeLoc, 2 + i);
     }
@@ -551,7 +643,7 @@ float angleY=0;
 void render(GLenum cullFace)
 {
     GL_ERROR();
-    glClearColor(0.0f,0.0f,0.0f,1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //  transform the box
     glm::mat4 projection = glm::perspective(FoV, (GLfloat)g_winWidth/g_winHeight, 0.1f, 400.f);
