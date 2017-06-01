@@ -80,6 +80,8 @@ set(ALL_LIBS
 
 add_executable(main
   main.cpp
+  common/shader.cpp
+	common/shader.hpp
 	common/texture.cpp
 	common/texture.hpp
 )

@@ -1,6 +1,10 @@
 #ifndef SHADER_HPP
 #define SHADER_HPP
 
-GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path);
+GLboolean compileCheck(GLuint shader);
+GLuint initShaderObj(const GLchar* srcfile, GLenum shaderType);
+GLuint createShaderPgm();
+void linkShader(GLuint shaderPgm, GLuint newVertHandle, GLuint newFragHandle);
+GLint checkShaderLinkStatus(GLuint pgmHandle);
 
 #endif
