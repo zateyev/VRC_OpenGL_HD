@@ -78,5 +78,9 @@ set(ALL_LIBS
   GLEW_1130
 )
 
-add_executable(main main.cpp)
+add_executable(main
+  main.cpp
+	common/texture.cpp
+	common/texture.hpp
+)
 target_link_libraries(main PUBLIC glui::glui ${ALL_LIBS})
